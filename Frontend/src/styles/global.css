@@ -1,0 +1,38 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Source+Sans+3:wght@400;500;600&display=swap");
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+/* Body font (similar to Avenir Book) */
+body {
+  font-family: "Source Sans 3", "Avenir", Arial, sans-serif;
+  background: linear-gradient(135deg, #0d1a22 0%, #132733 45%, #183847 100%);
+  color: #f9fafb;
+}
+
+/* Headings font (similar to Arial Rounded MT Bold) */
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Nunito", "Arial Rounded MT Bold", Arial, sans-serif;
+  letter-spacing: 0.3px;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button,
+input {
+  font-family: inherit;
+}
