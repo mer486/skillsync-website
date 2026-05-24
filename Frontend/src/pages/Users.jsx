@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../layouts/AdminLayout";
+import toast from "react-hot-toast";
 
 function Users() {
   const [users, setUsers] = useState([]);
@@ -28,11 +29,14 @@ function Users() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:5000/api/users", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+  "http://localhost:5000/api/admin/users",
+  {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  }
+);
 
       const data = await response.json();
 
@@ -40,7 +44,7 @@ function Users() {
         throw new Error(data.message || "Failed to load users");
       }
 
-      setUsers(data);
+      setUsers(data.data?.items || []);
     } catch (err) {
       setError(err.message || "Failed to load users");
     } finally {
@@ -49,6 +53,7 @@ function Users() {
   };
 
   useEffect(() => {
+    toast.success("User unblocked successfully");
     fetchUsers();
   }, []);
 
@@ -59,10 +64,18 @@ function Users() {
 
     return users.filter(
       (user) =>
-        user.name?.toLowerCase().includes(term) ||
+        getUserName(user).toLowerCase().includes(term) ||
         user.email?.toLowerCase().includes(term)
     );
   }, [users, searchTerm]);
+
+  const getUserName = (user) => {
+  return user.fullName || user.name || "Unnamed User";
+};
+
+const getUserStatus = (user) => {
+  return user.isActive === false ? "Blocked" : "Active";
+};
 
   const openBlockModal = (user) => {
     setSelectedUser(user);
@@ -79,10 +92,7 @@ function Users() {
     setModalType("unblock");
   };
 
-  const openDeleteModal = (user) => {
-    setSelectedUser(user);
-    setModalType("delete");
-  };
+  
 
   const openDetailsModal = (user) => {
     setSelectedUser(user);
@@ -100,116 +110,72 @@ function Users() {
   };
 
   const handleBlockUser = async () => {
-    if (!selectedUser) return;
+  if (!selectedUser) return;
 
-    setBlockError("");
+  setBlockError("");
 
-    if (!blockForm.blockReason) {
-      setBlockError("Please select a block reason.");
-      return;
-    }
+  if (!blockForm.blockReason) {
+    setBlockError("Please select a block reason.");
+    return;
+  }
 
-    try {
-      const admin = JSON.parse(localStorage.getItem("admin") || "{}");
-
-      const response = await fetch(
-        `http://localhost:5000/api/users/${selectedUser._id}`,
-        {
-          method: "PUT",
-          headers: authHeaders,
-          body: JSON.stringify({
-            name: selectedUser.name,
-            email: selectedUser.email,
-            role: selectedUser.role,
-            status: "Blocked",
-            blockReason: blockForm.blockReason,
-            blockNote: blockForm.blockNote,
-            blockedAt: new Date().toISOString(),
-            blockedBy: admin.email || "Admin",
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to block user");
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/admin/users/${selectedUser._id}/status`,
+      {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify({
+  isActive: false,
+  blockReason: blockForm.blockReason,
+  blockNote: blockForm.blockNote,
+}),
       }
+    );
 
-      setUsers((prev) =>
-        prev.map((item) => (item._id === selectedUser._id ? data : item))
-      );
+    const data = await response.json();
 
-      closeModal();
-    } catch (err) {
-      alert(err.message || "Failed to block user");
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to block user");
     }
-  };
 
+    fetchUsers();
+    closeModal();
+  } catch (err) {
+    toast.error(err.message || "Failed to block user");
+  }
+};
   const handleUnblockUser = async () => {
-    if (!selectedUser) return;
+  if (!selectedUser) return;
 
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/users/${selectedUser._id}`,
-        {
-          method: "PUT",
-          headers: authHeaders,
-          body: JSON.stringify({
-            name: selectedUser.name,
-            email: selectedUser.email,
-            role: selectedUser.role,
-            status: "Active",
-            blockReason: "",
-            blockNote: "",
-            blockedAt: null,
-            blockedBy: "",
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to unblock user");
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/admin/users/${selectedUser._id}/status`,
+      {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify({
+  isActive: true,
+  blockReason: "",
+  blockNote: "",
+}),
       }
+    );
 
-      setUsers((prev) =>
-        prev.map((item) => (item._id === selectedUser._id ? data : item))
-      );
+    const data = await response.json();
 
-      closeModal();
-    } catch (err) {
-      alert(err.message || "Failed to unblock user");
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to unblock user");
     }
-  };
+    toast.success("User blocked successfully");
+    fetchUsers();
+    closeModal();
+  } catch (err) {
+    toast.error(err.message || "Failed to unblock user");
+  }
+};
 
-  const handleDeleteUser = async () => {
-    if (!selectedUser) return;
-
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/users/${selectedUser._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to delete user");
-      }
-
-      setUsers((prev) => prev.filter((item) => item._id !== selectedUser._id));
-      closeModal();
-    } catch (err) {
-      alert(err.message || "Failed to delete user");
-    }
-  };
+  
 
   const formatDate = (dateValue) => {
     if (!dateValue) return "Not available";
@@ -311,7 +277,7 @@ function Users() {
             <tbody>
               {filteredUsers.map((user) => (
                 <tr key={user._id}>
-                  <td style={cellStyle}>{user.name}</td>
+                  <td style={cellStyle}>{getUserName(user)}</td>
                   <td style={cellStyle}>{user.email}</td>
                   <td style={cellStyle}>{user.role}</td>
                   <td style={cellStyle}>
@@ -321,7 +287,7 @@ function Users() {
                         padding: "6px 14px",
                         borderRadius: "999px",
                         background:
-                          user.status === "Active"
+                          getUserStatus(user) === "Active"
                             ? "rgba(245,161,0,0.16)"
                             : "rgba(255,255,255,0.08)",
                         color: "#F9FAFB",
@@ -329,12 +295,12 @@ function Users() {
                         fontWeight: "700",
                       }}
                     >
-                      {user.status}
+                      {getUserStatus(user)}
                     </span>
                   </td>
                   <td style={cellStyle}>
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                      {user.status === "Blocked" && (
+                      {getUserStatus(user) === "Blocked" && (
                         <button
                           onClick={() => openDetailsModal(user)}
                           style={smallBtn}
@@ -345,21 +311,16 @@ function Users() {
 
                       <button
                         onClick={() =>
-                          user.status === "Blocked"
+                          getUserStatus(user) === "Blocked"
                             ? openUnblockModal(user)
                             : openBlockModal(user)
                         }
                         style={smallBtn}
                       >
-                        {user.status === "Blocked" ? "Unblock" : "Block"}
+                        {getUserStatus(user) === "Blocked" ? "Unblock" : "Block"}
                       </button>
 
-                      <button
-                        onClick={() => openDeleteModal(user)}
-                        style={smallBtn}
-                      >
-                        Delete
-                      </button>
+                    
                     </div>
                   </td>
                 </tr>
@@ -637,14 +598,14 @@ function Users() {
                     <div>
                       <p style={detailsLabel}>Internal Note</p>
                       <p style={detailsValue}>
-                        {selectedUser?.blockNote || "No internal note added."}
+                        {selectedUser?.adminNote || "No internal note added."}
                       </p>
                     </div>
 
                     <div>
                       <p style={detailsLabel}>Blocked By</p>
                       <p style={detailsValue}>
-                        {selectedUser?.blockedBy || "Not available"}
+                        {selectedUser?.blockedByAdmin?.fullName || "-" || "Not available"}
                       </p>
                     </div>
 
@@ -740,72 +701,7 @@ function Users() {
               </>
             )}
 
-            {modalType === "delete" && (
-              <>
-                <div style={{ padding: "28px", position: "relative" }}>
-                  <button onClick={closeModal} style={closeBtn}>
-                    ×
-                  </button>
-
-                  <h2
-                    style={{
-                      margin: "4px 0 14px 0",
-                      color: "#F9FAFB",
-                      fontSize: "24px",
-                      fontWeight: "800",
-                    }}
-                  >
-                    Delete User
-                  </h2>
-
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "rgba(249,250,251,0.72)",
-                      fontSize: "15px",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    Are you sure you want to delete{" "}
-                    <span style={{ color: "#F9FAFB", fontWeight: "700" }}>
-                      {selectedUser?.name}
-                    </span>
-                    ? This action cannot be undone.
-                  </p>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: "12px",
-                    padding: "18px 28px 22px 28px",
-                    borderTop: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <button
-                    onClick={handleDeleteUser}
-                    style={{
-                      padding: "12px 28px",
-                      borderRadius: "14px",
-                      border: "none",
-                      background:
-                        "linear-gradient(180deg, #ff7d7d 0%, #e35d5d 100%)",
-                      color: "#fff",
-                      fontSize: "15px",
-                      fontWeight: "800",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Delete
-                  </button>
-
-                  <button onClick={closeModal} style={cancelBtn}>
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
+            
           </div>
 
           <style>

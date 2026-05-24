@@ -1,19 +1,25 @@
 import { NavLink } from "react-router-dom";
 import "./sidebar.css";
 
+
 function Sidebar() {
   const menuItems = [
-    { path: "/dashboard", label: "Dashboard", icon: "⌂" },
-    { path: "/users", label: "Users", icon: "◉" },
-    { path: "/mentors", label: "Mentors", icon: "◎" },
-    { path: "/career-paths", label: "Career Paths", icon: "◇" },
-    { path: "/chat-feedback", label: "Chat & Feedback", icon: "✉" },
-    { path: "/payments", label: "Payments", icon: "◌" },
-    { path: "/analytics", label: "Analytics", icon: "△" },
-    { path: "/event-requests", label: "Event Requests", icon: "□" },
-    { path: "/events-management", label: "Events", icon: "▣" },
-    { path: "/settings", label: "Settings", icon: "⚙" },
-  ];
+  { path: "/dashboard", label: "Dashboard", icon: "⌂" },
+  { path: "/mentor-behavior", label: "Mentor Behavior", icon: "⚠" },
+  { path: "/mentor-cancellations", label: "Cancellation Reviews", icon: "!" },
+  { path: "/schedule-requests", label: "Schedule Requests", icon: "⏱" },
+  { path: "/availability-exceptions", label: "Availability Exceptions", icon: "⧖" },
+  { path: "/mentor-activity-logs", label: "Mentor Logs", icon: "≡" },
+  { path: "/users", label: "Users", icon: "◉" },
+  { path: "/mentors", label: "Mentors", icon: "◎" },
+  { path: "/career-paths", label: "Career Paths", icon: "◇" },
+  { path: "/chat-feedback", label: "Chat & Feedback", icon: "✉" },
+  { path: "/payments", label: "Payments", icon: "◌" },
+  { path: "/analytics", label: "Analytics", icon: "△" },
+  { path: "/event-requests", label: "Event Requests", icon: "□" },
+  { path: "/events-management", label: "Events", icon: "▣" },
+  { path: "/settings", label: "Settings", icon: "⚙" },
+];
 
   return (
     <aside className="sidebar">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../layouts/AdminLayout";
+import toast from "react-hot-toast";
 
 function Mentors() {
   const [mentors, setMentors] = useState([]);
@@ -9,19 +10,6 @@ function Mentors() {
   const [selectedMentor, setSelectedMentor] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: "",
-    email: "",
-    field: "",
-    rating: 0,
-    sessions: 0,
-    status: "Pending",
-  });
-
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [mentorToDelete, setMentorToDelete] = useState(null);
-
   const token = localStorage.getItem("token");
 
   const fetchMentors = async () => {
@@ -29,7 +17,7 @@ function Mentors() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:5000/api/mentors", {
+      const response = await fetch("http://localhost:5000/api/admin/mentors", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -41,7 +29,7 @@ function Mentors() {
         throw new Error(data.message || "Failed to load mentors");
       }
 
-      setMentors(Array.isArray(data) ? data : []);
+      setMentors(data.data?.items || []);
     } catch (err) {
       setError(err.message || "Failed to load mentors");
     } finally {
@@ -53,30 +41,30 @@ function Mentors() {
     fetchMentors();
   }, []);
 
-  const isMentorVerified = (mentor) => {
-    const status = String(mentor.status || "").toLowerCase();
-    const verificationStatus = String(
-      mentor.verificationStatus || ""
-    ).toLowerCase();
-
-    return (
-      status === "active" ||
-      status === "verified" ||
-      mentor.isVerified === true ||
-      mentor.verified === true ||
-      verificationStatus === "approved" ||
-      verificationStatus === "verified"
-    );
-  };
+  const isMentorVerified = (mentor) => mentor.isVerified === true;
 
   const getMentorDisplayStatus = (mentor) => {
-    if (isMentorVerified(mentor)) return "Verified";
+    return isMentorVerified(mentor) ? "Verified" : "Pending";
+  };
 
-    const status = String(mentor.status || "").trim();
+  const getMentorName = (mentor) => {
+    return mentor.userId?.fullName || mentor.name || "Unnamed Mentor";
+  };
 
-    if (!status) return "Pending";
+  const getMentorEmail = (mentor) => {
+    return mentor.userId?.email || mentor.email || "-";
+  };
 
-    return status;
+  const getMentorSpecialization = (mentor) => {
+    if (Array.isArray(mentor.specialization) && mentor.specialization.length > 0) {
+      return mentor.specialization.join(", ");
+    }
+
+    return mentor.careerField || mentor.field || "Not specified";
+  };
+
+  const getLiveStatus = (mentor) => {
+    return mentor.availabilityStatus || (mentor.isAvailable ? "online" : "offline");
   };
 
   const openViewModal = (mentor) => {
@@ -89,97 +77,21 @@ function Mentors() {
     setIsViewModalOpen(false);
   };
 
-  const openEditModal = (mentor) => {
-    setSelectedMentor(mentor);
-    setEditForm({
-      name: mentor.name || "",
-      email: mentor.email || "",
-      field: mentor.field || "",
-      rating: mentor.rating || 0,
-      sessions: mentor.sessions || 0,
-      status: mentor.status || "Pending",
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const closeEditModal = () => {
-    setSelectedMentor(null);
-    setIsEditModalOpen(false);
-  };
-
-  const openDeleteModal = (mentor) => {
-    setMentorToDelete(mentor);
-    setIsDeleteModalOpen(true);
-  };
-
-  const closeDeleteModal = () => {
-    setMentorToDelete(null);
-    setIsDeleteModalOpen(false);
-  };
-
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-
-    setEditForm((prev) => ({
-      ...prev,
-      [name]:
-        name === "rating" || name === "sessions" ? Number(value) : value,
-    }));
-  };
-
-  const handleUpdateMentor = async (e) => {
-    e.preventDefault();
-
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/mentors/${selectedMentor._id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(editForm),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to update mentor");
-      }
-
-      closeEditModal();
-      fetchMentors();
-    } catch (err) {
-      alert(err.message || "Failed to update mentor");
-    }
-  };
-
   const handleVerifyMentor = async (mentor) => {
     const confirmed = window.confirm(
-      `Are you sure you want to verify ${mentor.name}? This will allow the mentor to access their account.`
+      `Are you sure you want to verify ${getMentorName(mentor)}?`
     );
 
     if (!confirmed) return;
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/mentors/${mentor._id}`,
+        `http://localhost:5000/api/admin/mentor-profiles/${mentor._id}/verify`,
         {
-          method: "PUT",
+          method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            name: mentor.name || "",
-            email: mentor.email || "",
-            field: mentor.field || "",
-            rating: mentor.rating || 0,
-            sessions: mentor.sessions || 0,
-            status: "Active",
-          }),
         }
       );
 
@@ -189,21 +101,25 @@ function Mentors() {
         throw new Error(data.message || "Failed to verify mentor");
       }
 
-      alert("Mentor verified successfully");
+      toast.success("Mentor verified successfully");
       fetchMentors();
     } catch (err) {
-      alert(err.message || "Failed to verify mentor");
+      toast.error(err.message || "Failed to verify mentor");
     }
   };
 
-  const handleDeleteMentor = async () => {
-    if (!mentorToDelete) return;
+  const handleUnverifyMentor = async (mentor) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to unverify ${getMentorName(mentor)}?`
+    );
+
+    if (!confirmed) return;
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/mentors/${mentorToDelete._id}`,
+        `http://localhost:5000/api/admin/mentor-profiles/${mentor._id}/unverify`,
         {
-          method: "DELETE",
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -213,32 +129,24 @@ function Mentors() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to delete mentor");
+        throw new Error(data.message || "Failed to unverify mentor");
       }
 
-      closeDeleteModal();
+      toast.success("Mentor unverified successfully");
       fetchMentors();
     } catch (err) {
-      alert(err.message || "Failed to delete mentor");
+      toast.error(err.message || "Failed to unverify mentor");
     }
   };
 
   const getStatusStyle = (status) => {
     const normalized = String(status || "").toLowerCase();
 
-    if (normalized === "verified" || normalized === "active") {
+    if (normalized === "verified") {
       return {
         background: "rgba(34,197,94,0.15)",
         color: "#86efac",
         border: "1px solid rgba(34,197,94,0.25)",
-      };
-    }
-
-    if (normalized === "rejected") {
-      return {
-        background: "rgba(239,68,68,0.15)",
-        color: "#fca5a5",
-        border: "1px solid rgba(239,68,68,0.25)",
       };
     }
 
@@ -249,38 +157,59 @@ function Mentors() {
     };
   };
 
+  const getLiveStatusStyle = (status) => {
+    const normalized = String(status || "").toLowerCase();
+
+    if (normalized === "online") {
+      return {
+        background: "rgba(34,197,94,0.12)",
+        color: "#86efac",
+        border: "1px solid rgba(34,197,94,0.22)",
+      };
+    }
+
+    if (normalized === "on_break") {
+      return {
+        background: "rgba(245,161,0,0.12)",
+        color: "#F5A100",
+        border: "1px solid rgba(245,161,0,0.22)",
+      };
+    }
+
+    return {
+      background: "rgba(255,255,255,0.06)",
+      color: "rgba(255,255,255,0.65)",
+      border: "1px solid rgba(255,255,255,0.1)",
+    };
+  };
+
   return (
     <AdminLayout>
       <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "26px", margin: 0 }}>Mentor Monitoring</h1>
+        <h1 style={{ fontSize: "26px", margin: 0, color: "#F9FAFB" }}>
+          Mentor Monitoring
+        </h1>
 
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>
-          View mentor profiles, review pending registrations, and verify mentors.
+          View mentor profiles, verification status, live status, and reliability warnings.
         </p>
       </div>
 
-      <div
-        style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.05)",
-          borderRadius: "20px",
-          padding: "24px",
-        }}
-      >
+      <div style={tableContainer}>
         {loading ? (
-          <p style={{ color: "rgba(255,255,255,0.75)" }}>
-            Loading mentors...
-          </p>
+          <p style={{ color: "rgba(255,255,255,0.75)" }}>Loading mentors...</p>
         ) : error ? (
           <p style={{ color: "#ff7d7d" }}>{error}</p>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={tableStyle}>
             <thead>
-              <tr style={{ fontSize: "12px", color: "rgba(255,255,255,0.55)" }}>
+              <tr style={tableHeadRow}>
                 <th align="left">Mentor</th>
                 <th align="left">Specialization</th>
                 <th align="left">Rating</th>
                 <th align="left">Sessions</th>
+                <th align="left">Live Status</th>
+                <th align="left">Warnings</th>
                 <th align="left">Status</th>
                 <th align="left">Actions</th>
               </tr>
@@ -290,69 +219,52 @@ function Mentors() {
               {mentors.map((mentor) => {
                 const displayStatus = getMentorDisplayStatus(mentor);
                 const verified = isMentorVerified(mentor);
+                const liveStatus = getLiveStatus(mentor);
 
                 return (
-                  <tr
-                    key={mentor._id}
-                    style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-                  >
-                    <td style={{ padding: "14px 0", fontWeight: "600" }}>
-                      {mentor.name || "Unnamed Mentor"}
+                  <tr key={mentor._id} style={tableRow}>
+                    <td style={tableCellStrong}>
+                      {getMentorName(mentor)}
+                      <div style={smallMuted}>{getMentorEmail(mentor)}</div>
                     </td>
 
-                    <td style={{ color: "rgba(255,255,255,0.75)" }}>
-                      {mentor.field || "Not specified"}
+                    <td style={tableCellMuted}>
+                      {getMentorSpecialization(mentor)}
                     </td>
 
-                    <td style={{ color: "#F5A100", fontWeight: "600" }}>
-                      ⭐ {mentor.rating || 0}
+                    <td style={tableCellAccent}>⭐ {mentor.ratingAverage || 0}</td>
+
+                    <td style={tableCellMuted}>{mentor.totalSessions || 0}</td>
+
+                    <td style={tableCell}>
+                      <span style={{ ...badgeStyle, ...getLiveStatusStyle(liveStatus) }}>
+                        {liveStatus}
+                      </span>
                     </td>
 
-                    <td style={{ color: "rgba(255,255,255,0.75)" }}>
-                      {mentor.sessions || 0}
+                    <td style={tableCellMuted}>
+                      {mentor.consecutiveValidCancellations || 0} valid /{" "}
+                      {mentor.cancellationPenaltyCount || 0} penalties
                     </td>
 
-                    <td>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "6px 12px",
-                          borderRadius: "999px",
-                          fontSize: "12px",
-                          fontWeight: "700",
-                          ...getStatusStyle(displayStatus),
-                        }}
-                      >
+                    <td style={tableCell}>
+                      <span style={{ ...badgeStyle, ...getStatusStyle(displayStatus) }}>
                         {displayStatus}
                       </span>
                     </td>
 
-                    <td>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                          padding: "10px 0",
-                        }}
-                      >
-                        <button
-                          onClick={() => openViewModal(mentor)}
-                          style={actionBtn}
-                        >
+                    <td style={tableCell}>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <button onClick={() => openViewModal(mentor)} style={actionBtn}>
                           View
                         </button>
 
-                        <button
-                          onClick={() => openEditModal(mentor)}
-                          style={actionBtn}
-                        >
-                          Edit
-                        </button>
-
                         {verified ? (
-                          <button disabled style={verifiedBtn}>
-                            Verified
+                          <button
+                            onClick={() => handleUnverifyMentor(mentor)}
+                            style={unverifyBtn}
+                          >
+                            Unverify
                           </button>
                         ) : (
                           <button
@@ -362,13 +274,6 @@ function Mentors() {
                             Verify
                           </button>
                         )}
-
-                        <button
-                          onClick={() => openDeleteModal(mentor)}
-                          style={deleteBtn}
-                        >
-                          Delete
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -377,14 +282,7 @@ function Mentors() {
 
               {mentors.length === 0 && (
                 <tr>
-                  <td
-                    colSpan="6"
-                    style={{
-                      padding: "18px 0",
-                      color: "rgba(255,255,255,0.6)",
-                      borderTop: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                  >
+                  <td colSpan="8" style={emptyCell}>
                     No mentors found.
                   </td>
                 </tr>
@@ -402,61 +300,65 @@ function Mentors() {
                 ×
               </button>
 
-              <h2
-                style={{
-                  margin: "4px 0 18px 0",
-                  color: "#F9FAFB",
-                  fontSize: "24px",
-                  fontWeight: "800",
-                }}
-              >
-                Mentor Details
-              </h2>
+              <h2 style={modalTitle}>Mentor Details</h2>
 
-              <div style={{ display: "grid", gap: "18px" }}>
-                <div>
-                  <p style={detailsLabel}>Name</p>
-                  <p style={detailsValue}>{selectedMentor.name}</p>
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Email</p>
-                  <p style={detailsValue}>{selectedMentor.email}</p>
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Specialization</p>
-                  <p style={detailsValue}>{selectedMentor.field}</p>
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Rating</p>
-                  <p style={detailsValue}>⭐ {selectedMentor.rating || 0}</p>
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Sessions</p>
-                  <p style={detailsValue}>{selectedMentor.sessions || 0}</p>
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Status</p>
-                  <p style={detailsValue}>
-                    {getMentorDisplayStatus(selectedMentor)}
-                  </p>
-                </div>
+              <div style={detailsGrid}>
+                <DetailItem label="Name" value={getMentorName(selectedMentor)} />
+                <DetailItem label="Email" value={getMentorEmail(selectedMentor)} />
+                <DetailItem
+                  label="Specialization"
+                  value={getMentorSpecialization(selectedMentor)}
+                />
+                <DetailItem
+                  label="Rating"
+                  value={`⭐ ${selectedMentor.ratingAverage || 0}`}
+                />
+                <DetailItem
+                  label="Sessions"
+                  value={selectedMentor.totalSessions || 0}
+                />
+                <DetailItem
+                  label="Verification Status"
+                  value={getMentorDisplayStatus(selectedMentor)}
+                />
+                <DetailItem
+                  label="Live Status"
+                  value={getLiveStatus(selectedMentor)}
+                />
+                <DetailItem
+                  label="Consecutive Valid Cancellations"
+                  value={selectedMentor.consecutiveValidCancellations || 0}
+                />
+                <DetailItem
+                  label="Penalty Count"
+                  value={selectedMentor.cancellationPenaltyCount || 0}
+                />
+                <DetailItem
+                  label="Last Cancellation Reviewed At"
+                  value={
+                    selectedMentor.lastCancellationReviewedAt
+                      ? new Date(selectedMentor.lastCancellationReviewedAt).toLocaleString()
+                      : "-"
+                  }
+                />
+                <DetailItem
+                  label="Break Ends At"
+                  value={
+                    selectedMentor.breakEndsAt
+                      ? new Date(selectedMentor.breakEndsAt).toLocaleString()
+                      : "-"
+                  }
+                />
+                <DetailItem
+                  label="Base Rate"
+                  value={`${selectedMentor.baseRate || 0} ${
+                    selectedMentor.currency || "EGP"
+                  }`}
+                />
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "12px",
-                padding: "18px 28px 22px 28px",
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
+            <div style={modalFooter}>
               <button onClick={closeViewModal} style={cancelBtn}>
                 Close
               </button>
@@ -484,189 +386,85 @@ function Mentors() {
           </style>
         </div>
       )}
-
-      {isEditModalOpen && selectedMentor && (
-        <div onClick={closeEditModal} style={overlayStyle}>
-          <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
-            <div style={{ padding: "28px", position: "relative" }}>
-              <button onClick={closeEditModal} style={closeBtn}>
-                ×
-              </button>
-
-              <h2
-                style={{
-                  margin: "4px 0 18px 0",
-                  color: "#F9FAFB",
-                  fontSize: "24px",
-                  fontWeight: "800",
-                }}
-              >
-                Edit Mentor
-              </h2>
-
-              <form
-                onSubmit={handleUpdateMentor}
-                style={{ display: "grid", gap: "16px" }}
-              >
-                <div>
-                  <p style={detailsLabel}>Name</p>
-                  <input
-                    type="text"
-                    name="name"
-                    value={editForm.name}
-                    onChange={handleEditChange}
-                    required
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Email</p>
-                  <input
-                    type="email"
-                    name="email"
-                    value={editForm.email}
-                    onChange={handleEditChange}
-                    required
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Specialization</p>
-                  <input
-                    type="text"
-                    name="field"
-                    value={editForm.field}
-                    onChange={handleEditChange}
-                    required
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Rating</p>
-                  <input
-                    type="number"
-                    name="rating"
-                    value={editForm.rating}
-                    onChange={handleEditChange}
-                    min="0"
-                    step="0.1"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Sessions</p>
-                  <input
-                    type="number"
-                    name="sessions"
-                    value={editForm.sessions}
-                    onChange={handleEditChange}
-                    min="0"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <p style={detailsLabel}>Status</p>
-                  <select
-                    name="status"
-                    value={editForm.status}
-                    onChange={handleEditChange}
-                    style={inputStyle}
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Active">Active</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: "12px",
-                    marginTop: "8px",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={closeEditModal}
-                    style={cancelBtn}
-                  >
-                    Cancel
-                  </button>
-
-                  <button type="submit" style={saveBtn}>
-                    Save Changes
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isDeleteModalOpen && mentorToDelete && (
-        <div onClick={closeDeleteModal} style={overlayStyle}>
-          <div onClick={(e) => e.stopPropagation()} style={deleteModalStyle}>
-            <div style={{ padding: "28px", position: "relative" }}>
-              <button onClick={closeDeleteModal} style={closeBtn}>
-                ×
-              </button>
-
-              <h2
-                style={{
-                  margin: "4px 0 14px 0",
-                  color: "#F9FAFB",
-                  fontSize: "24px",
-                  fontWeight: "800",
-                }}
-              >
-                Delete Mentor
-              </h2>
-
-              <p
-                style={{
-                  margin: 0,
-                  color: "rgba(255,255,255,0.72)",
-                  fontSize: "15px",
-                  lineHeight: 1.7,
-                }}
-              >
-                Are you sure you want to delete{" "}
-                <span style={{ color: "#F9FAFB", fontWeight: "700" }}>
-                  {mentorToDelete.name}
-                </span>
-                ? This action cannot be undone.
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "12px",
-                padding: "18px 28px 22px 28px",
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <button onClick={closeDeleteModal} style={cancelBtn}>
-                Cancel
-              </button>
-
-              <button onClick={handleDeleteMentor} style={confirmDeleteBtn}>
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminLayout>
   );
 }
+
+function DetailItem({ label, value }) {
+  return (
+    <div style={detailItemStyle}>
+      <p style={detailsLabel}>{label}</p>
+      <p style={detailsValue}>{value}</p>
+    </div>
+  );
+}
+
+const tableContainer = {
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.05)",
+  borderRadius: "20px",
+  padding: "24px",
+  overflowX: "auto",
+};
+
+const tableStyle = {
+  width: "100%",
+  minWidth: "980px",
+  borderCollapse: "collapse",
+};
+
+const tableHeadRow = {
+  fontSize: "12px",
+  color: "rgba(255,255,255,0.55)",
+};
+
+const tableRow = {
+  borderTop: "1px solid rgba(255,255,255,0.05)",
+};
+
+const tableCell = {
+  padding: "14px 8px",
+  color: "#F9FAFB",
+  fontSize: "14px",
+  verticalAlign: "top",
+};
+
+const tableCellStrong = {
+  ...tableCell,
+  fontWeight: "700",
+};
+
+const tableCellMuted = {
+  ...tableCell,
+  color: "rgba(255,255,255,0.72)",
+};
+
+const tableCellAccent = {
+  ...tableCell,
+  color: "#F5A100",
+  fontWeight: "700",
+};
+
+const smallMuted = {
+  marginTop: "5px",
+  color: "rgba(255,255,255,0.42)",
+  fontSize: "12px",
+  fontWeight: "500",
+};
+
+const emptyCell = {
+  padding: "18px 8px",
+  color: "rgba(255,255,255,0.6)",
+  borderTop: "1px solid rgba(255,255,255,0.05)",
+};
+
+const badgeStyle = {
+  display: "inline-block",
+  padding: "6px 12px",
+  borderRadius: "999px",
+  fontSize: "12px",
+  fontWeight: "800",
+};
 
 const overlayStyle = {
   position: "fixed",
@@ -684,9 +482,10 @@ const overlayStyle = {
 
 const modalStyle = {
   width: "100%",
-  maxWidth: "560px",
+  maxWidth: "760px",
+  maxHeight: "88vh",
+  overflow: "auto",
   borderRadius: "24px",
-  overflow: "hidden",
   background:
     "linear-gradient(180deg, rgba(20,53,70,0.97) 0%, rgba(16,38,50,0.99) 100%)",
   border: "1px solid rgba(255,255,255,0.08)",
@@ -694,16 +493,50 @@ const modalStyle = {
   animation: "modalSlide 0.25s ease",
 };
 
-const deleteModalStyle = {
-  width: "100%",
-  maxWidth: "520px",
-  borderRadius: "24px",
-  overflow: "hidden",
-  background:
-    "linear-gradient(180deg, rgba(39,20,20,0.97) 0%, rgba(30,16,16,0.99) 100%)",
-  border: "1px solid rgba(239,68,68,0.16)",
-  boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
-  animation: "modalSlide 0.25s ease",
+const modalTitle = {
+  margin: "4px 0 20px 0",
+  color: "#F9FAFB",
+  fontSize: "24px",
+  fontWeight: "800",
+};
+
+const detailsGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "16px",
+};
+
+const detailItemStyle = {
+  background: "rgba(255,255,255,0.025)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  borderRadius: "16px",
+  padding: "14px",
+  minHeight: "72px",
+};
+
+const detailsLabel = {
+  margin: "0 0 6px 0",
+  color: "rgba(249,250,251,0.58)",
+  fontSize: "13px",
+  fontWeight: "700",
+};
+
+const detailsValue = {
+  margin: 0,
+  color: "#F9FAFB",
+  fontSize: "15px",
+  lineHeight: 1.5,
+  fontWeight: "600",
+  wordBreak: "break-word",
+  whiteSpace: "pre-wrap",
+};
+
+const modalFooter = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "12px",
+  padding: "18px 28px 22px 28px",
+  borderTop: "1px solid rgba(255,255,255,0.08)",
 };
 
 const closeBtn = {
@@ -728,30 +561,8 @@ const cancelBtn = {
   cursor: "pointer",
 };
 
-const saveBtn = {
-  padding: "12px 24px",
-  borderRadius: "14px",
-  border: "1px solid rgba(245,161,0,0.25)",
-  background: "rgba(245,161,0,0.12)",
-  color: "#F9FAFB",
-  fontSize: "15px",
-  fontWeight: "700",
-  cursor: "pointer",
-};
-
-const confirmDeleteBtn = {
-  padding: "12px 24px",
-  borderRadius: "14px",
-  border: "1px solid rgba(239,68,68,0.28)",
-  background: "rgba(239,68,68,0.16)",
-  color: "#fecaca",
-  fontSize: "15px",
-  fontWeight: "700",
-  cursor: "pointer",
-};
-
 const actionBtn = {
-  padding: "6px 12px",
+  padding: "7px 12px",
   borderRadius: "10px",
   border: "1px solid rgba(255,255,255,0.08)",
   background: "transparent",
@@ -760,58 +571,23 @@ const actionBtn = {
 };
 
 const verifyBtn = {
-  padding: "6px 12px",
+  padding: "7px 12px",
   borderRadius: "10px",
   border: "1px solid rgba(34,197,94,0.25)",
   background: "rgba(34,197,94,0.12)",
   color: "#86efac",
   cursor: "pointer",
+  fontWeight: "700",
 };
 
-const verifiedBtn = {
-  padding: "6px 12px",
+const unverifyBtn = {
+  padding: "7px 12px",
   borderRadius: "10px",
-  border: "1px solid rgba(34,197,94,0.18)",
-  background: "rgba(34,197,94,0.06)",
-  color: "rgba(134,239,172,0.65)",
-  cursor: "not-allowed",
-};
-
-const deleteBtn = {
-  padding: "6px 12px",
-  borderRadius: "10px",
-  border: "1px solid rgba(239,68,68,0.25)",
-  background: "transparent",
-  color: "#ff7d7d",
+  border: "1px solid rgba(245,161,0,0.25)",
+  background: "rgba(245,161,0,0.1)",
+  color: "#F5A100",
   cursor: "pointer",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
-  color: "#F9FAFB",
-  outline: "none",
-  fontSize: "14px",
-  boxSizing: "border-box",
-};
-
-const detailsLabel = {
-  margin: "0 0 8px 0",
-  color: "rgba(249,250,251,0.58)",
-  fontSize: "13px",
-  fontWeight: "600",
-  letterSpacing: "0.2px",
-};
-
-const detailsValue = {
-  margin: 0,
-  color: "#F9FAFB",
-  fontSize: "15px",
-  lineHeight: 1.7,
-  whiteSpace: "pre-wrap",
+  fontWeight: "700",
 };
 
 export default Mentors;

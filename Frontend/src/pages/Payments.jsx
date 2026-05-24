@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 
+const API_BASE = "http://localhost:5000/api/admin";
+
 function Payments() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [providerFilter, setProviderFilter] = useState("All");
   const [entityFilter, setEntityFilter] = useState("All");
 
-  const [openDropdown, setOpenDropdown] = useState(null);
-
   const [transactions, setTransactions] = useState([]);
   const [summary, setSummary] = useState({
-    totalTransactionVolume: 0,
-    walletTopups: 0,
+    totalRevenue: 0,
+    totalTransactions: 0,
     pendingTransactions: 0,
+    completedTransactions: 0,
   });
 
   const [loading, setLoading] = useState(true);
@@ -28,21 +29,15 @@ function Payments() {
         setSummaryLoading(true);
         setError("");
 
-        const [transactionsResponse, summaryResponse] = await Promise.all([
-          fetch("http://localhost:5000/api/payments", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-          fetch("http://localhost:5000/api/payments/summary", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }),
-        ]);
+        const headers = {
+          Authorization: `Bearer ${token}`,
+        };
 
-        const transactionsData = await transactionsResponse.json();
-        const summaryData = await summaryResponse.json();
+        const transactionsResponse = await fetch(`${API_BASE}/transactions`, {
+  headers,
+});
+
+const transactionsData = await transactionsResponse.json();
 
         if (!transactionsResponse.ok) {
           throw new Error(
@@ -50,16 +45,21 @@ function Payments() {
           );
         }
 
-        if (!summaryResponse.ok) {
-          throw new Error(summaryData.message || "Failed to load payment summary");
-        }
+        
 
-        setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
-        setSummary({
-          totalTransactionVolume: Number(summaryData.totalTransactionVolume || 0),
-          walletTopups: Number(summaryData.walletTopups || 0),
-          pendingTransactions: Number(summaryData.pendingTransactions || 0),
-        });
+        const txItems = transactionsData.data?.items || [];
+
+setTransactions(txItems);
+
+setSummary({
+  totalRevenue: txItems.reduce(
+    (sum, tx) => sum + Number(tx.amount || tx.totalAmount || 0),
+    0
+  ),
+  totalTransactions: txItems.length,
+  pendingTransactions: txItems.filter((tx) => tx.status === "pending").length,
+  completedTransactions: txItems.filter((tx) => tx.status === "completed").length,
+});
       } catch (err) {
         setError(err.message || "Failed to load payment data");
       } finally {
@@ -97,6 +97,7 @@ function Payments() {
     { label: "All", value: "All" },
     { label: "Internal", value: "internal" },
     { label: "Fawry", value: "fawry" },
+    { label: "Stripe", value: "stripe" },
   ];
 
   const entityOptions = [
@@ -111,8 +112,9 @@ function Payments() {
     <AdminLayout>
       <div style={{ marginBottom: "22px" }}>
         <h1 style={title}>Payments & Transactions</h1>
+
         <p style={subtitle}>
-          Monitor transactions, wallet activity, providers, and payment status.
+          Monitor transactions, providers, payment status, and platform revenue.
         </p>
       </div>
 
@@ -121,167 +123,68 @@ function Payments() {
       ) : null}
 
       <div style={statsGrid}>
-        <div style={statCard}>
-          <div style={statLabel}>Total Transaction Volume</div>
-          <div style={statValue}>
-            {summaryLoading ? "..." : `${summary.totalTransactionVolume} EGP`}
-          </div>
-        </div>
+        <StatCard
+          label="Total Revenue"
+          value={summaryLoading ? "..." : `${summary.totalRevenue} EGP`}
+        />
 
-        <div style={statCard}>
-          <div style={statLabel}>Wallet Top-Ups</div>
-          <div style={statValue}>
-            {summaryLoading ? "..." : `${summary.walletTopups} EGP`}
-          </div>
-        </div>
+        <StatCard
+          label="Total Transactions"
+          value={summaryLoading ? "..." : summary.totalTransactions}
+        />
 
-        <div style={statCard}>
-          <div style={statLabel}>Pending Transactions</div>
-          <div style={statValue}>
-            {summaryLoading ? "..." : `${summary.pendingTransactions} EGP`}
-          </div>
-        </div>
+        <StatCard
+          label="Pending Transactions"
+          value={summaryLoading ? "..." : summary.pendingTransactions}
+        />
+
+        <StatCard
+          label="Completed Transactions"
+          value={summaryLoading ? "..." : summary.completedTransactions}
+        />
       </div>
 
       <div style={tableCard}>
         <div style={filterBar}>
-          <div style={filterGroup}>
-            <label style={filterLabel}>Status</label>
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() =>
-                  setOpenDropdown((prev) => (prev === "status" ? null : "status"))
-                }
-                style={customSelectButton}
-              >
-                <span>{getSelectedLabel(statusOptions, statusFilter)}</span>
-                <span style={arrowStyle}>
-                  {openDropdown === "status" ? "▴" : "▾"}
-                </span>
-              </button>
+          <FilterSelect
+            label="Status"
+            options={statusOptions}
+            value={statusFilter}
+            onChange={setStatusFilter}
+          />
 
-              {openDropdown === "status" && (
-                <div style={customDropdownMenu}>
-                  {statusOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setStatusFilter(option.value);
-                        setOpenDropdown(null);
-                      }}
-                      style={{
-                        ...dropdownItemStyle,
-                        ...(statusFilter === option.value
-                          ? activeDropdownItemStyle
-                          : {}),
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <FilterSelect
+            label="Provider"
+            options={providerOptions}
+            value={providerFilter}
+            onChange={setProviderFilter}
+          />
 
-          <div style={filterGroup}>
-            <label style={filterLabel}>Provider</label>
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() =>
-                  setOpenDropdown((prev) =>
-                    prev === "provider" ? null : "provider"
-                  )
-                }
-                style={customSelectButton}
-              >
-                <span>{getSelectedLabel(providerOptions, providerFilter)}</span>
-                <span style={arrowStyle}>
-                  {openDropdown === "provider" ? "▴" : "▾"}
-                </span>
-              </button>
-
-              {openDropdown === "provider" && (
-                <div style={customDropdownMenu}>
-                  {providerOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setProviderFilter(option.value);
-                        setOpenDropdown(null);
-                      }}
-                      style={{
-                        ...dropdownItemStyle,
-                        ...(providerFilter === option.value
-                          ? activeDropdownItemStyle
-                          : {}),
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={filterGroup}>
-            <label style={filterLabel}>Entity Type</label>
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() =>
-                  setOpenDropdown((prev) => (prev === "entity" ? null : "entity"))
-                }
-                style={customSelectButton}
-              >
-                <span>{getSelectedLabel(entityOptions, entityFilter)}</span>
-                <span style={arrowStyle}>
-                  {openDropdown === "entity" ? "▴" : "▾"}
-                </span>
-              </button>
-
-              {openDropdown === "entity" && (
-                <div style={customDropdownMenu}>
-                  {entityOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setEntityFilter(option.value);
-                        setOpenDropdown(null);
-                      }}
-                      style={{
-                        ...dropdownItemStyle,
-                        ...(entityFilter === option.value
-                          ? activeDropdownItemStyle
-                          : {}),
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <FilterSelect
+            label="Entity Type"
+            options={entityOptions}
+            value={entityFilter}
+            onChange={setEntityFilter}
+          />
         </div>
 
         {loading ? (
-          <p style={{ color: "#F9FAFB", opacity: 0.8 }}>Loading transactions...</p>
+          <p style={{ color: "#F9FAFB", opacity: 0.8 }}>
+            Loading transactions...
+          </p>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={tableStyle}>
             <thead>
               <tr>
                 {[
                   "Transaction ID",
                   "User",
                   "Amount",
-                  "Type",
                   "Provider",
                   "Entity",
                   "Status",
-                  "Provider Status",
                   "Reference",
-                  "Date",
+                  "Created At",
                 ].map((item) => (
                   <th key={item} style={thStyle}>
                     {item}
@@ -293,30 +196,43 @@ function Payments() {
             <tbody>
               {filteredTransactions.length > 0 ? (
                 filteredTransactions.map((tx) => (
-                  <tr key={tx.id}>
-                    <td style={cellStyle}>{tx.id}</td>
-                    <td style={cellStyle}>{tx.user}</td>
+                  <tr key={tx._id}>
+                    <td style={cellStyle}>{tx._id}</td>
+
                     <td style={cellStyle}>
-                      {tx.amount} {tx.currency}
+                      {tx.userId?.fullName || "Unknown User"}
                     </td>
-                    <td style={cellStyle}>{formatLabel(tx.type)}</td>
-                    <td style={cellStyle}>{formatLabel(tx.provider)}</td>
-                    <td style={cellStyle}>{formatLabel(tx.entityType)}</td>
+
+                    <td style={cellStyle}>
+                      {tx.amount || 0} {tx.currency || "EGP"}
+                    </td>
+
+                    <td style={cellStyle}>
+                      {formatLabel(tx.provider)}
+                    </td>
+
+                    <td style={cellStyle}>
+                      {formatLabel(tx.entityType)}
+                    </td>
+
                     <td style={cellStyle}>
                       <span style={getStatusStyle(tx.status)}>
                         {formatLabel(tx.status)}
                       </span>
                     </td>
-                    <td style={cellStyle}>
-                      {tx.providerStatus ? formatLabel(tx.providerStatus) : "-"}
-                    </td>
+
                     <td style={cellStyle}>{tx.reference || "-"}</td>
-                    <td style={cellStyle}>{tx.date || "-"}</td>
+
+                    <td style={cellStyle}>
+                      {tx.createdAt
+                        ? new Date(tx.createdAt).toLocaleString()
+                        : "-"}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="10" style={emptyStateStyle}>
+                  <td colSpan="8" style={emptyStateStyle}>
                     No transactions match the selected filters.
                   </td>
                 </tr>
@@ -329,9 +245,33 @@ function Payments() {
   );
 }
 
-function getSelectedLabel(options, value) {
-  const match = options.find((option) => option.value === value);
-  return match ? match.label : "All";
+function StatCard({ label, value }) {
+  return (
+    <div style={statCard}>
+      <div style={statLabel}>{label}</div>
+      <div style={statValue}>{value}</div>
+    </div>
+  );
+}
+
+function FilterSelect({ label, options, value, onChange }) {
+  return (
+    <div style={filterGroup}>
+      <label style={filterLabel}>{label}</label>
+
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={selectStyle}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 function formatLabel(value) {
@@ -355,7 +295,7 @@ const subtitle = {
 
 const statsGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
+  gridTemplateColumns: "repeat(4, minmax(0,1fr))",
   gap: "18px",
   marginBottom: "18px",
 };
@@ -366,7 +306,6 @@ const statCard = {
   borderRadius: "24px",
   padding: "22px",
   border: "1px solid rgba(255,255,255,0.05)",
-  boxShadow: "0 12px 26px rgba(0,0,0,0.15)",
 };
 
 const statLabel = {
@@ -377,7 +316,7 @@ const statLabel = {
 
 const statValue = {
   color: "#F9FAFB",
-  fontSize: "34px",
+  fontSize: "30px",
   fontWeight: "800",
 };
 
@@ -387,13 +326,12 @@ const tableCard = {
   borderRadius: "28px",
   padding: "24px",
   border: "1px solid rgba(255,255,255,0.05)",
-  boxShadow: "0 12px 26px rgba(0,0,0,0.15)",
   overflowX: "auto",
 };
 
 const filterBar = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gridTemplateColumns: "repeat(3, minmax(0,1fr))",
   gap: "16px",
   marginBottom: "22px",
 };
@@ -410,59 +348,20 @@ const filterLabel = {
   fontWeight: "600",
 };
 
-const customSelectButton = {
+const selectStyle = {
   width: "100%",
-  padding: "12px 16px",
-  borderRadius: "16px",
+  padding: "12px 14px",
+  borderRadius: "14px",
   border: "1px solid rgba(255,255,255,0.08)",
   background: "rgba(255,255,255,0.04)",
   color: "#F9FAFB",
-  fontSize: "15px",
-  fontWeight: "600",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+  outline: "none",
 };
 
-const arrowStyle = {
-  color: "rgba(249,250,251,0.72)",
-  fontSize: "14px",
-};
-
-const customDropdownMenu = {
-  position: "absolute",
-  top: "calc(100% + 8px)",
-  left: 0,
-  right: 0,
-  background:
-    "linear-gradient(180deg, rgba(20,53,70,0.98) 0%, rgba(16,38,50,1) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "16px",
-  padding: "8px",
-  boxShadow: "0 18px 36px rgba(0,0,0,0.22)",
-  zIndex: 100,
-  display: "grid",
-  gap: "6px",
-};
-
-const dropdownItemStyle = {
+const tableStyle = {
   width: "100%",
-  textAlign: "left",
-  padding: "12px 14px",
-  borderRadius: "12px",
-  border: "none",
-  background: "transparent",
-  color: "#F9FAFB",
-  fontSize: "14px",
-  fontWeight: "600",
-  cursor: "pointer",
-};
-
-const activeDropdownItemStyle = {
-  background: "rgba(245,161,0,0.14)",
-  color: "#F5A100",
+  minWidth: "900px",
+  borderCollapse: "collapse",
 };
 
 const thStyle = {
@@ -471,15 +370,13 @@ const thStyle = {
   fontSize: "13px",
   fontWeight: "600",
   paddingBottom: "14px",
-  whiteSpace: "nowrap",
 };
 
 const cellStyle = {
   color: "#F9FAFB",
-  fontSize: "15px",
+  fontSize: "14px",
   padding: "16px 12px 16px 0",
   borderTop: "1px solid rgba(255,255,255,0.05)",
-  whiteSpace: "nowrap",
 };
 
 const emptyStateStyle = {
@@ -497,7 +394,7 @@ const getStatusStyle = (status) => {
       padding: "6px 14px",
       borderRadius: "999px",
       background: "rgba(34,197,94,0.16)",
-      color: "#F9FAFB",
+      color: "#86efac",
       fontSize: "13px",
       fontWeight: "700",
     };
@@ -509,7 +406,7 @@ const getStatusStyle = (status) => {
       padding: "6px 14px",
       borderRadius: "999px",
       background: "rgba(245,161,0,0.16)",
-      color: "#F9FAFB",
+      color: "#F5A100",
       fontSize: "13px",
       fontWeight: "700",
     };
@@ -520,7 +417,7 @@ const getStatusStyle = (status) => {
     padding: "6px 14px",
     borderRadius: "999px",
     background: "rgba(239,68,68,0.16)",
-    color: "#F9FAFB",
+    color: "#fca5a5",
     fontSize: "13px",
     fontWeight: "700",
   };

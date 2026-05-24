@@ -1,451 +1,238 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../layouts/AdminLayout";
+import toast from "react-hot-toast";
+
+const API_BASE = "http://localhost:5000/api/admin";
 
 function ChatFeedback() {
-  const [feedbackList, setFeedbackList] = useState([]);
+  const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [summary, setSummary] = useState({
-    mentorRating: 0,
-    applicationRating: 0,
-    chatExperience: 0,
-  });
-
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-
-  const [openStatusMenuId, setOpenStatusMenuId] = useState(null);
-
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [feedbackToDelete, setFeedbackToDelete] = useState(null);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [complaintStatus, setComplaintStatus] = useState("reviewed");
+  const [complaintAdminNote, setComplaintAdminNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const token = localStorage.getItem("token");
 
-  const fetchFeedback = async () => {
+  const fetchComplaints = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:5000/api/feedback", {
+      const response = await fetch(`${API_BASE}/complaints/open`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const data = await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to load feedback");
+        throw new Error(result.message || "Failed to load complaints");
       }
 
-      setFeedbackList(data);
-
-      if (data.length > 0) {
-        const totalRating = data.reduce(
-          (sum, item) => sum + (item.rating || 0),
-          0
-        );
-
-        const averageRating = (totalRating / data.length).toFixed(1);
-
-        setSummary({
-          mentorRating: averageRating,
-          applicationRating: averageRating,
-          chatExperience: averageRating,
-        });
-      } else {
-        setSummary({
-          mentorRating: 0,
-          applicationRating: 0,
-          chatExperience: 0,
-        });
-      }
+      setComplaints(result.data || []);
     } catch (err) {
-      setError(err.message || "Failed to load feedback");
+      setError(err.message || "Failed to load complaints");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFeedback();
+    fetchComplaints();
   }, [token]);
 
-  const handleStatusUpdate = async (feedback, newStatus) => {
+  const openStatusModal = (complaint, status = "reviewed") => {
+    setSelectedComplaint(complaint);
+    setComplaintStatus(status);
+    setComplaintAdminNote("");
+  };
+
+  const closeStatusModal = () => {
+    setSelectedComplaint(null);
+    setComplaintStatus("reviewed");
+    setComplaintAdminNote("");
+  };
+
+  const submitComplaintStatus = async () => {
+    if (!selectedComplaint) return;
+
     try {
+      setSubmitting(true);
+
       const response = await fetch(
-        `http://localhost:5000/api/feedback/${feedback._id}`,
+        `${API_BASE}/complaints/${selectedComplaint._id}/status`,
         {
-          method: "PUT",
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            session: feedback.session,
-            issue: feedback.issue,
-            rating: feedback.rating,
-            status: newStatus,
+            complaintStatus,
+            complaintAdminNote,
           }),
         }
       );
 
-      const data = await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to update feedback status");
+        throw new Error(result.message || "Failed to update complaint");
       }
 
-      setOpenStatusMenuId(null);
-      fetchFeedback();
+      toast.success("Complaint status updated");
+      closeStatusModal();
+      fetchComplaints();
     } catch (err) {
-      alert(err.message || "Failed to update feedback status");
+      toast.error(err.message || "Failed to update complaint");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const openDeleteModal = (feedback) => {
-    setFeedbackToDelete(feedback);
-    setIsDeleteModalOpen(true);
-  };
-
-  const closeDeleteModal = () => {
-    setFeedbackToDelete(null);
-    setIsDeleteModalOpen(false);
-  };
-
-  const handleDeleteFeedback = async () => {
-    if (!feedbackToDelete) return;
-
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/feedback/${feedbackToDelete._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to delete feedback");
-      }
-
-      closeDeleteModal();
-      fetchFeedback();
-    } catch (err) {
-      alert(err.message || "Failed to delete feedback");
-    }
-  };
-
-  const getStatusBadgeStyle = (status) => {
-    const normalized = (status || "").toLowerCase();
-
-    if (normalized === "resolved") {
-      return {
-        background: "rgba(34,197,94,0.16)",
-        color: "#F9FAFB",
-        border: "1px solid rgba(34,197,94,0.22)",
-      };
-    }
-
-    if (normalized === "under review") {
-      return {
-        background: "rgba(125,179,209,0.18)",
-        color: "#F9FAFB",
-        border: "1px solid rgba(125,179,209,0.22)",
-      };
-    }
-
-    return {
-      background: "rgba(245,161,0,0.16)",
-      color: "#F9FAFB",
-      border: "1px solid rgba(245,161,0,0.22)",
-    };
-  };
-
-  const filteredFeedback =
-    statusFilter === "All"
-      ? feedbackList
-      : feedbackList.filter(
-          (item) =>
-            (item.status || "").toLowerCase() === statusFilter.toLowerCase()
-        );
-
-  const filterOptions = ["All", "Open", "Resolved", "Under Review"];
-  const statusOptions = ["Open", "Under Review", "Resolved"];
+  const openCount = complaints.length;
 
   return (
     <AdminLayout>
       <div style={{ marginBottom: "22px" }}>
-        <h1
-          style={{
-            color: "#F9FAFB",
-            fontSize: "32px",
-            fontWeight: "800",
-            margin: 0,
-          }}
-        >
-          Chat & Feedback
-        </h1>
-        <p
-          style={{
-            color: "rgba(249,250,251,0.6)",
-            marginTop: "8px",
-            fontSize: "15px",
-          }}
-        >
-          Review reports, complaints, and session feedback.
+        <h1 style={pageTitle}>Chat & Feedback</h1>
+        <p style={pageSubtitle}>
+          Review open complaints and session feedback. Mentor cancellation reviews are handled separately.
         </p>
       </div>
 
-      {loading ? (
-        <p style={{ color: "rgba(255,255,255,0.75)" }}>Loading feedback...</p>
-      ) : error ? (
-        <p style={{ color: "#ff7d7d" }}>{error}</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "18px",
-          }}
-        >
-          <div style={cardStyle}>
-            <h3 style={titleStyle}>Feedback Summary</h3>
-            <div style={{ display: "grid", gap: "14px" }}>
-              <div style={miniCard}>
-                <span style={labelStyle}>Mentor Rating</span>
-                <span style={valueStyle}>{summary.mentorRating} / 5</span>
-              </div>
-              <div style={miniCard}>
-                <span style={labelStyle}>Application Rating</span>
-                <span style={valueStyle}>{summary.applicationRating} / 5</span>
-              </div>
-              <div style={miniCard}>
-                <span style={labelStyle}>Chat Experience</span>
-                <span style={valueStyle}>{summary.chatExperience} / 5</span>
-              </div>
-            </div>
-          </div>
+      <div style={summaryGrid}>
+        <SummaryCard title="Open Complaints" value={openCount} />
+        <SummaryCard
+          title="Complaint Source"
+          value="Sessions"
+          subtitle="Session feedback reports"
+        />
+        <SummaryCard
+          title="Admin Action"
+          value="Review"
+          subtitle="Reviewed / Resolved / Dismissed"
+        />
+      </div>
 
-          <div style={cardStyle}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "18px",
-                gap: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <h3 style={{ ...titleStyle, marginBottom: 0 }}>Reported Sessions</h3>
+      <div style={cardStyle}>
+        <h3 style={titleStyle}>Open Complaints</h3>
 
-              <div style={{ position: "relative", minWidth: "190px" }}>
-                <button
-                  onClick={() => setIsFilterOpen((prev) => !prev)}
-                  style={customSelectButton}
-                >
-                  <span>{statusFilter}</span>
-                  <span style={arrowStyle}>{isFilterOpen ? "▴" : "▾"}</span>
-                </button>
+        {loading ? (
+          <p style={mutedText}>Loading complaints...</p>
+        ) : error ? (
+          <p style={errorText}>{error}</p>
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr style={tableHeadRow}>
+                <th align="left">User</th>
+                <th align="left">Mentor</th>
+                <th align="left">Rating</th>
+                <th align="left">Complaint</th>
+                <th align="left">Status</th>
+                <th align="left">Created At</th>
+                <th align="left">Actions</th>
+              </tr>
+            </thead>
 
-                {isFilterOpen && (
-                  <div style={customDropdownMenu}>
-                    {filterOptions.map((option) => (
+            <tbody>
+              {complaints.map((item) => (
+                <tr key={item._id} style={tableRow}>
+                  <td style={tableCell}>
+                    {item.userId?.fullName || "Unnamed User"}
+                    <div style={smallMuted}>{item.userId?.email || "-"}</div>
+                  </td>
+
+                  <td style={tableCellMuted}>
+                    {item.mentorUserId?.fullName || "Unnamed Mentor"}
+                    <div style={smallMuted}>{item.mentorUserId?.email || "-"}</div>
+                  </td>
+
+                  <td style={tableCellAccent}>{item.rating || 0} / 5</td>
+
+                  <td style={tableCellMuted}>
+                    {item.complaintText || item.comment || "No complaint text"}
+                  </td>
+
+                  <td style={tableCell}>
+                    <span style={getStatusBadge(item.complaintStatus)}>
+                      {item.complaintStatus || "open"}
+                    </span>
+                  </td>
+
+                  <td style={tableCellMuted}>
+                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}
+                  </td>
+
+                  <td style={tableCell}>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                       <button
-                        key={option}
-                        onClick={() => {
-                          setStatusFilter(option);
-                          setIsFilterOpen(false);
-                        }}
-                        style={{
-                          ...dropdownItemStyle,
-                          ...(statusFilter === option
-                            ? activeDropdownItemStyle
-                            : {}),
-                        }}
+                        style={reviewBtn}
+                        onClick={() => openStatusModal(item, "reviewed")}
                       >
-                        {option}
+                        Review
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gap: "12px" }}>
-              {filteredFeedback.length > 0 ? (
-                filteredFeedback.map((report) => (
-                  <div
-                    key={report._id}
-                    style={{
-                      ...miniCard,
-                      alignItems: "flex-start",
-                      gap: "16px",
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          color: "#F9FAFB",
-                          fontWeight: "700",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        {report.session}
-                      </div>
-
-                      <div
-                        style={{
-                          color: "rgba(249,250,251,0.62)",
-                          fontSize: "14px",
-                          marginBottom: "10px",
-                        }}
-                      >
-                        {report.issue}
-                      </div>
-
-                      <div
-                        style={{
-                          color: "#F5A100",
-                          fontSize: "14px",
-                          fontWeight: "700",
-                        }}
-                      >
-                        Rating: {report.rating} / 5
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                        alignItems: "flex-end",
-                        minWidth: "150px",
-                      }}
-                    >
-                      <div style={{ position: "relative", width: "150px" }}>
-                        <button
-                          onClick={() =>
-                            setOpenStatusMenuId((prev) =>
-                              prev === report._id ? null : report._id
-                            )
-                          }
-                          style={{
-                            ...statusButtonStyle,
-                            ...getStatusBadgeStyle(report.status),
-                          }}
-                        >
-                          <span>{report.status}</span>
-                          <span style={arrowStyle}>
-                            {openStatusMenuId === report._id ? "▴" : "▾"}
-                          </span>
-                        </button>
-
-                        {openStatusMenuId === report._id && (
-                          <div style={statusDropdownMenu}>
-                            {statusOptions.map((option) => (
-                              <button
-                                key={option}
-                                onClick={() =>
-                                  handleStatusUpdate(report, option)
-                                }
-                                style={{
-                                  ...dropdownItemStyle,
-                                  ...(report.status === option
-                                    ? activeDropdownItemStyle
-                                    : {}),
-                                }}
-                              >
-                                {option}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
                       <button
-                        onClick={() => openDeleteModal(report)}
-                        style={deleteBtn}
+                        style={resolveBtn}
+                        onClick={() => openStatusModal(item, "resolved")}
                       >
-                        Delete
+                        Resolve
+                      </button>
+                      <button
+                        style={dismissBtn}
+                        onClick={() => openStatusModal(item, "dismissed")}
+                      >
+                        Dismiss
                       </button>
                     </div>
-                  </div>
-                ))
-              ) : (
-                <div style={miniCard}>
-                  <div
-                    style={{
-                      color: "rgba(249,250,251,0.62)",
-                      fontSize: "14px",
-                    }}
-                  >
-                    No feedback found.
-                  </div>
-                </div>
+                  </td>
+                </tr>
+              ))}
+
+              {complaints.length === 0 && (
+                <tr style={tableRow}>
+                  <td colSpan="7" style={tableCellMuted}>
+                    No open complaints.
+                  </td>
+                </tr>
               )}
-            </div>
-          </div>
-        </div>
-      )}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-      {isDeleteModalOpen && feedbackToDelete && (
-        <div onClick={closeDeleteModal} style={overlayStyle}>
-          <div onClick={(e) => e.stopPropagation()} style={deleteModalStyle}>
-            <div style={{ padding: "28px", position: "relative" }}>
-              <button onClick={closeDeleteModal} style={closeBtn}>
-                ×
-              </button>
+      {selectedComplaint && (
+        <div onClick={closeStatusModal} style={overlayStyle}>
+          <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
+            <h2 style={modalTitle}>Update Complaint Status</h2>
 
-              <h2
-                style={{
-                  margin: "4px 0 14px 0",
-                  color: "#F9FAFB",
-                  fontSize: "24px",
-                  fontWeight: "800",
-                }}
-              >
-                Delete Feedback
-              </h2>
+            <p style={pageSubtitle}>
+              Set this complaint to: <strong>{complaintStatus}</strong>
+            </p>
 
-              <p
-                style={{
-                  margin: 0,
-                  color: "rgba(255,255,255,0.72)",
-                  fontSize: "15px",
-                  lineHeight: 1.7,
-                }}
-              >
-                Are you sure you want to delete feedback for{" "}
-                <span style={{ color: "#F9FAFB", fontWeight: "700" }}>
-                  {feedbackToDelete.session}
-                </span>
-                ? This action cannot be undone.
-              </p>
-            </div>
+            <label style={labelStyle}>Admin Note</label>
+            <textarea
+              value={complaintAdminNote}
+              onChange={(e) => setComplaintAdminNote(e.target.value)}
+              placeholder="Write an internal admin note..."
+              style={textareaStyle}
+            />
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "12px",
-                padding: "18px 28px 22px 28px",
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <button onClick={closeDeleteModal} style={cancelBtn}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button onClick={closeStatusModal} style={cancelBtn}>
                 Cancel
               </button>
-
-              <button onClick={handleDeleteFeedback} style={confirmDeleteBtn}>
-                Delete
+              <button
+                onClick={submitComplaintStatus}
+                disabled={submitting}
+                style={saveBtn}
+              >
+                {submitting ? "Saving..." : "Save Status"}
               </button>
             </div>
           </div>
@@ -455,135 +242,195 @@ function ChatFeedback() {
   );
 }
 
+function SummaryCard({ title, value, subtitle }) {
+  return (
+    <div style={summaryCard}>
+      <span style={summaryTitle}>{title}</span>
+      <strong style={summaryValue}>{value}</strong>
+      {subtitle && <span style={summarySubtitle}>{subtitle}</span>}
+    </div>
+  );
+}
+
+function getStatusBadge(status) {
+  const normalized = String(status || "open").toLowerCase();
+
+  const base = {
+    display: "inline-block",
+    padding: "6px 12px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: "800",
+    textTransform: "capitalize",
+  };
+
+  if (normalized === "resolved") {
+    return {
+      ...base,
+      background: "rgba(34,197,94,0.12)",
+      color: "#86efac",
+      border: "1px solid rgba(34,197,94,0.25)",
+    };
+  }
+
+  if (normalized === "dismissed") {
+    return {
+      ...base,
+      background: "rgba(255,255,255,0.06)",
+      color: "rgba(255,255,255,0.65)",
+      border: "1px solid rgba(255,255,255,0.1)",
+    };
+  }
+
+  if (normalized === "reviewed") {
+    return {
+      ...base,
+      background: "rgba(125,179,209,0.16)",
+      color: "#B0D6EA",
+      border: "1px solid rgba(125,179,209,0.25)",
+    };
+  }
+
+  return {
+    ...base,
+    background: "rgba(245,161,0,0.12)",
+    color: "#F5A100",
+    border: "1px solid rgba(245,161,0,0.25)",
+  };
+}
+
+const pageTitle = {
+  color: "#F9FAFB",
+  fontSize: "32px",
+  fontWeight: "800",
+  margin: 0,
+};
+
+const pageSubtitle = {
+  color: "rgba(249,250,251,0.6)",
+  marginTop: "8px",
+  fontSize: "15px",
+};
+
+const summaryGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: "14px",
+  marginBottom: "18px",
+};
+
+const summaryCard = {
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.05)",
+  borderRadius: "18px",
+  padding: "18px",
+  display: "grid",
+  gap: "8px",
+};
+
+const summaryTitle = {
+  color: "rgba(249,250,251,0.65)",
+  fontSize: "14px",
+};
+
+const summaryValue = {
+  color: "#F5A100",
+  fontSize: "24px",
+};
+
+const summarySubtitle = {
+  color: "rgba(249,250,251,0.45)",
+  fontSize: "12px",
+};
+
 const cardStyle = {
   background:
     "linear-gradient(180deg, rgba(20,53,70,0.95) 0%, rgba(16,38,50,0.98) 100%)",
-  borderRadius: "28px",
-  padding: "24px",
+  borderRadius: "24px",
+  padding: "22px",
   border: "1px solid rgba(255,255,255,0.05)",
   boxShadow: "0 12px 26px rgba(0,0,0,0.15)",
+  overflowX: "auto",
 };
 
 const titleStyle = {
   color: "#F9FAFB",
   fontSize: "22px",
   fontWeight: "800",
-  marginBottom: "18px",
+  margin: "0 0 18px",
 };
 
-const miniCard = {
-  background: "rgba(255,255,255,0.03)",
-  border: "1px solid rgba(255,255,255,0.05)",
-  borderRadius: "18px",
-  padding: "16px 18px",
-  display: "flex",
-  justifyContent: "space-between",
-};
+const mutedText = { color: "rgba(255,255,255,0.7)" };
+const errorText = { color: "#ff7d7d" };
 
-const labelStyle = {
-  color: "rgba(249,250,251,0.68)",
-  fontSize: "15px",
-};
-
-const valueStyle = {
-  color: "#F5A100",
-  fontSize: "18px",
-  fontWeight: "800",
-};
-
-const customSelectButton = {
-  width: "190px",
-  padding: "12px 16px",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#F9FAFB",
-  fontSize: "15px",
-  fontWeight: "600",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
-};
-
-const statusButtonStyle = {
-  width: "150px",
-  padding: "10px 14px",
-  borderRadius: "16px",
-  fontSize: "13px",
-  fontWeight: "700",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
-};
-
-const arrowStyle = {
-  color: "rgba(249,250,251,0.72)",
-  fontSize: "14px",
-};
-
-const customDropdownMenu = {
-  position: "absolute",
-  top: "calc(100% + 8px)",
-  left: 0,
-  right: 0,
-  background:
-    "linear-gradient(180deg, rgba(20,53,70,0.98) 0%, rgba(16,38,50,1) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "16px",
-  padding: "8px",
-  boxShadow: "0 18px 36px rgba(0,0,0,0.22)",
-  zIndex: 100,
-  display: "grid",
-  gap: "6px",
-};
-
-const statusDropdownMenu = {
-  position: "absolute",
-  top: "calc(100% + 8px)",
-  left: 0,
-  right: 0,
-  background:
-    "linear-gradient(180deg, rgba(20,53,70,0.98) 0%, rgba(16,38,50,1) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "16px",
-  padding: "8px",
-  boxShadow: "0 18px 36px rgba(0,0,0,0.22)",
-  zIndex: 100,
-  display: "grid",
-  gap: "6px",
-};
-
-const dropdownItemStyle = {
+const tableStyle = {
   width: "100%",
-  textAlign: "left",
-  padding: "12px 14px",
-  borderRadius: "12px",
-  border: "none",
-  background: "transparent",
+  minWidth: "950px",
+  borderCollapse: "collapse",
+};
+
+const tableHeadRow = {
+  color: "rgba(255,255,255,0.55)",
+  fontSize: "12px",
+};
+
+const tableRow = {
+  borderTop: "1px solid rgba(255,255,255,0.06)",
+};
+
+const tableCell = {
+  padding: "14px 8px",
   color: "#F9FAFB",
   fontSize: "14px",
   fontWeight: "600",
-  cursor: "pointer",
+  verticalAlign: "top",
 };
 
-const activeDropdownItemStyle = {
-  background: "rgba(245,161,0,0.14)",
+const tableCellMuted = {
+  ...tableCell,
+  color: "rgba(255,255,255,0.68)",
+  fontWeight: "500",
+};
+
+const tableCellAccent = {
+  ...tableCell,
   color: "#F5A100",
 };
 
-const deleteBtn = {
+const smallMuted = {
+  marginTop: "4px",
+  color: "rgba(255,255,255,0.42)",
+  fontSize: "12px",
+};
+
+const reviewBtn = {
   padding: "8px 12px",
   borderRadius: "10px",
-  border: "1px solid rgba(239,68,68,0.25)",
-  background: "transparent",
-  color: "#ff7d7d",
-  fontSize: "13px",
-  fontWeight: "700",
+  border: "1px solid rgba(125,179,209,0.25)",
+  background: "rgba(125,179,209,0.12)",
+  color: "#B0D6EA",
   cursor: "pointer",
+  fontWeight: "700",
+};
+
+const resolveBtn = {
+  padding: "8px 12px",
+  borderRadius: "10px",
+  border: "1px solid rgba(34,197,94,0.25)",
+  background: "rgba(34,197,94,0.12)",
+  color: "#86efac",
+  cursor: "pointer",
+  fontWeight: "700",
+};
+
+const dismissBtn = {
+  padding: "8px 12px",
+  borderRadius: "10px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.03)",
+  color: "rgba(255,255,255,0.72)",
+  cursor: "pointer",
+  fontWeight: "700",
 };
 
 const overlayStyle = {
@@ -599,48 +446,63 @@ const overlayStyle = {
   padding: "24px",
 };
 
-const deleteModalStyle = {
+const modalStyle = {
   width: "100%",
-  maxWidth: "520px",
+  maxWidth: "560px",
   borderRadius: "24px",
-  overflow: "hidden",
   background:
-    "linear-gradient(180deg, rgba(39,20,20,0.97) 0%, rgba(30,16,16,0.99) 100%)",
-  border: "1px solid rgba(239,68,68,0.16)",
+    "linear-gradient(180deg, rgba(20,53,70,0.97) 0%, rgba(16,38,50,0.99) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
   boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+  padding: "24px",
 };
 
-const closeBtn = {
-  position: "absolute",
-  top: "18px",
-  right: "18px",
-  background: "transparent",
-  border: "none",
-  color: "rgba(255,255,255,0.55)",
-  fontSize: "34px",
-  lineHeight: 1,
-  cursor: "pointer",
+const modalTitle = {
+  margin: 0,
+  color: "#F9FAFB",
+  fontSize: "22px",
+  fontWeight: "800",
+};
+
+const labelStyle = {
+  display: "block",
+  color: "rgba(255,255,255,0.62)",
+  marginBottom: "8px",
+  fontSize: "13px",
+  fontWeight: "700",
+};
+
+const textareaStyle = {
+  width: "100%",
+  minHeight: "110px",
+  resize: "vertical",
+  boxSizing: "border-box",
+  padding: "12px",
+  borderRadius: "14px",
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  color: "#F9FAFB",
+  outline: "none",
+  marginBottom: "16px",
 };
 
 const cancelBtn = {
-  padding: "12px 24px",
-  borderRadius: "14px",
+  padding: "10px 14px",
+  borderRadius: "10px",
   border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.02)",
+  background: "rgba(255,255,255,0.03)",
   color: "#F9FAFB",
-  fontSize: "15px",
   cursor: "pointer",
 };
 
-const confirmDeleteBtn = {
-  padding: "12px 24px",
-  borderRadius: "14px",
-  border: "1px solid rgba(239,68,68,0.28)",
-  background: "rgba(239,68,68,0.16)",
-  color: "#fecaca",
-  fontSize: "15px",
-  fontWeight: "700",
+const saveBtn = {
+  padding: "10px 14px",
+  borderRadius: "10px",
+  border: "1px solid rgba(245,161,0,0.25)",
+  background: "rgba(245,161,0,0.12)",
+  color: "#F5A100",
   cursor: "pointer",
+  fontWeight: "800",
 };
 
 export default ChatFeedback;

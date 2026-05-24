@@ -38,7 +38,7 @@ function Dashboard() {
       try {
         const token = localStorage.getItem("token");
 
-        const response = await fetch("http://localhost:5000/api/dashboard/stats", {
+        const response = await fetch("http://localhost:5000/api/admin/dashboard-summary", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -51,14 +51,18 @@ function Dashboard() {
         }
 
         setStats({
-          totalUsers: data.totalUsers || 0,
-          totalMentors: data.totalMentors || 0,
-          totalCareerPaths: data.totalCareerPaths || 0,
-          activeSessions: data.activeSessions || 0,
-          averageMentorRating: data.averageMentorRating || 0,
-          topFields: data.topFields || [],
-          recentMentors: data.recentMentors || [],
-        });
+  totalUsers: data.data?.totalUsers || 0,
+  totalMentors: data.data?.totalMentors || 0,
+  totalCareerPaths: data.data?.popularCareerPaths?.length || 0,
+  activeSessions: data.data?.activeSessions || 0,
+  averageMentorRating: 0,
+  topFields: (data.data?.popularCareerPaths || []).map((item) => ({
+    title: item.careerName,
+    count: item.count,
+    subtitle: "Career path interest",
+  })),
+  recentMentors: [],
+});
       } catch (error) {
         console.error("Failed to load dashboard stats:", error.message);
       } finally {

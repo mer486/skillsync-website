@@ -12,6 +12,12 @@ import Settings from "./pages/Settings";
 import EventRequests from "./pages/EventRequests";
 import EventsManagement from "./pages/EventsManagement";
 
+import MentorBehavior from "./pages/MentorBehavior";
+import MentorCancellations from "./pages/MentorCancellations";
+import ScheduleRequests from "./pages/ScheduleRequests";
+import AvailabilityExceptions from "./pages/AvailabilityExceptions";
+import MentorActivityLogs from "./pages/MentorActivityLogs";
+
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
   const isLoggedIn = localStorage.getItem("adminLoggedIn") === "true";
@@ -96,6 +102,51 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+  path="/mentor-behavior"
+  element={
+    <ProtectedRoute>
+      <MentorBehavior />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/mentor-cancellations"
+  element={
+    <ProtectedRoute>
+      <MentorCancellations />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/schedule-requests"
+  element={
+    <ProtectedRoute>
+      <ScheduleRequests />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/availability-exceptions"
+  element={
+    <ProtectedRoute>
+      <AvailabilityExceptions />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/mentor-activity-logs"
+  element={
+    <ProtectedRoute>
+      <MentorActivityLogs />
+    </ProtectedRoute>
+  }
+/>
 
         <Route
           path="/settings"
