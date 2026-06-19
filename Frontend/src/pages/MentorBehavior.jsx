@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 
-const API_BASE = "http://localhost:5000/api/admin";
+const API_BASE = "https://skillsync2-production.up.railway.app/api/admin";
 
 function StatCard({ title, value, subtitle }) {
   return (

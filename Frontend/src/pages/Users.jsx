@@ -30,7 +30,7 @@ function Users() {
       setError("");
 
       const response = await fetch(
-  "http://localhost:5000/api/admin/users",
+  "https://skillsync2-production.up.railway.app/api/admin/users",
   {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -121,7 +121,7 @@ const getUserStatus = (user) => {
 
   try {
     const response = await fetch(
-      `http://localhost:5000/api/admin/users/${selectedUser._id}/status`,
+      `https://skillsync2-production.up.railway.app/api/admin/users/${selectedUser._id}/status`,
       {
         method: "PATCH",
         headers: authHeaders,
@@ -150,7 +150,7 @@ const getUserStatus = (user) => {
 
   try {
     const response = await fetch(
-      `http://localhost:5000/api/admin/users/${selectedUser._id}/status`,
+      `https://skillsync2-production.up.railway.app/api/admin/users/${selectedUser._id}/status`,
       {
         method: "PATCH",
         headers: authHeaders,

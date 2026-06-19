@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import AdminLayout from "../layouts/AdminLayout";
 import toast from "react-hot-toast";
 
-const API_BASE = "http://localhost:5000/api/admin";
+const API_BASE = "https://skillsync2-production.up.railway.app/api/admin";
 
 function formatSchedule(items = []) {
   if (!Array.isArray(items) || items.length === 0) return "No schedule";

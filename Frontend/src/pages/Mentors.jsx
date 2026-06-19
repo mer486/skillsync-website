@@ -17,7 +17,7 @@ function Mentors() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:5000/api/admin/mentors", {
+      const response = await fetch("https://skillsync2-production.up.railway.app/api/admin/mentors", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -86,7 +86,7 @@ function Mentors() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/admin/mentor-profiles/${mentor._id}/verify`,
+        `https://skillsync2-production.up.railway.app/api/admin/mentor-profiles/${mentor._id}/verify`,
         {
           method: "POST",
           headers: {
@@ -117,7 +117,7 @@ function Mentors() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/admin/mentor-profiles/${mentor._id}/unverify`,
+        `https://skillsync2-production.up.railway.app/api/admin/mentor-profiles/${mentor._id}/unverify`,
         {
           method: "POST",
           headers: {

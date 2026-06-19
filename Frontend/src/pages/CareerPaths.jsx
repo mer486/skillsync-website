@@ -27,7 +27,7 @@ function CareerPaths() {
       setLoading(true);
       setError("");
 
-      const response = await fetch("http://localhost:5000/api/careerpaths", {
+      const response = await fetch("https://skillsync2-production.up.railway.app/api/careerpaths", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -101,7 +101,7 @@ function CareerPaths() {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/api/careerpaths", {
+      const response = await fetch("https://skillsync2-production.up.railway.app/api/careerpaths", {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify(formData),
@@ -130,7 +130,7 @@ function CareerPaths() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/careerpaths/${selectedCareer._id}`,
+        `https://skillsync2-production.up.railway.app/api/careerpaths/${selectedCareer._id}`,
         {
           method: "PUT",
           headers: authHeaders,
@@ -159,7 +159,7 @@ function CareerPaths() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/careerpaths/${selectedCareer._id}`,
+        `https://skillsync2-production.up.railway.app/api/careerpaths/${selectedCareer._id}`,
         {
           method: "DELETE",
           headers: {

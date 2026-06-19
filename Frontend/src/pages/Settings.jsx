@@ -32,12 +32,12 @@ function Settings() {
         setError("");
 
         const [settingsResponse, logsResponse] = await Promise.all([
-          fetch("http://localhost:5000/api/settings", {
+          fetch("https://skillsync2-production.up.railway.app/api/settings", {
             headers: {
               Authorization: `Bearer ${token}`,
             },
           }),
-          fetch("http://localhost:5000/api/settings/security-logs", {
+          fetch("https://skillsync2-production.up.railway.app/api/settings/security-logs", {
             headers: {
               Authorization: `Bearer ${token}`,
             },
@@ -101,7 +101,7 @@ function Settings() {
       setError("");
       setSuccessMessage("");
 
-      const response = await fetch("http://localhost:5000/api/settings", {
+      const response = await fetch("https://skillsync2-production.up.railway.app/api/settings", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
