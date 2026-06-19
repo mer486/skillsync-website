@@ -5,10 +5,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    allowedHosts: true,
+    allowedHosts: [
+      'skillsync-website-production.up.railway.app',
+    ],
   },
   preview: {
     host: '0.0.0.0',
-    allowedHosts: true,
+    allowedHosts: [
+      'skillsync-website-production.up.railway.app',
+    ],
   },
 })
